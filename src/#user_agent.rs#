@@ -1,0 +1,14 @@
+mod useragent {
+    #[derive(Debug)]
+    struct MyUserAgent<'a>(&'a str);
+
+    impl<'a, 'r> FromRequest<'a, 'r> for MyUserAgent<'a> {
+        type Error = ();
+        fn from_request(request: &'a Request<'r>) -> request::Outcome<MyUserAgent<'a>, ()> {
+            match request.headers().get_one("User-Agent") {
+                Some(text) => Outcome::Success(MyUserAgent(text)),
+                None => Outcome::Forward(()),
+            }
+        }
+    
+}

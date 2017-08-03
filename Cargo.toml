@@ -1,0 +1,13 @@
+[package]
+name = "rocketblog"
+version = "0.1.0"
+authors = ["Elliot Snow-Kropla <esnowkropla@gmail.com>"]
+
+[dependencies]
+rocket = { version = "*", features = [ "tls" ] }
+rocket_codegen = "*"
+diesel = { version = "*", features = ["postgres"] }
+diesel_codegen = { version = "*", features = ["postgres"] }
+r2d2-diesel = "*"
+r2d2 = "*"
+dotenv = "*"
