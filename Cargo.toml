@@ -6,8 +6,12 @@ authors = ["Elliot Snow-Kropla <esnowkropla@gmail.com>"]
 [dependencies]
 rocket = { version = "*", features = [ "tls" ] }
 rocket_codegen = "*"
+rocket_contrib = { version = "*", features = ["msgpack", "json", "handlebars_templates", "uuid"]}
 diesel = { version = "*", features = ["postgres"] }
 diesel_codegen = { version = "*", features = ["postgres"] }
 r2d2-diesel = "*"
 r2d2 = "*"
 dotenv = "*"
+serde = "*"
+serde_json = "*"
+serde_derive = "*"
