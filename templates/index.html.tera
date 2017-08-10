@@ -11,14 +11,14 @@
 {% endblock nav_contents %}
 {% block page_content %}
 <div class="row">
-	<div class="col-sm-4">
+	<div class="col-sm-6 col-m-4">
 		<div class="page-header">
 			<h1>Hello, {% if name %}{{name}}{% else %}World!{% endif %}</h1>
 		</div>
 	</div>
 </div>
 <div class="row">
-	<div class="col-sm-4">
+	<div class="col-sm-6 col-m-4">
 		<form action="/" method="post">
 		<!-- <h2 class="form-signin-heading">Please sign in</h2> -->
 		<!-- <label for="inputEmail" class="sr-only">Email address</label> -->

@@ -9,11 +9,10 @@ extern crate serde_derive;
 extern crate serde;
 
 use rocket::response::{NamedFile, Failure, Redirect, status};
-use rocket::http::Status;
-use rocket::request::{Request, Form, LenientForm, State};
+use rocket::http::{Status, Cookies, Cookie};
+use rocket::request::{Request, Form};
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 use rocket_contrib::Template;
 
@@ -48,35 +47,23 @@ fn contact() -> Template {
     Template::render("contact", &context)
 }
 
-struct GlobalContext {
-    name: Arc<Mutex<Option<String>>>,
-}
-
 #[derive(FromForm, Debug)]
 struct NameForm {
     name: String,
 }
 
 #[post("/", data = "<input>")]
-fn name_form(input: LenientForm<NameForm>, global: State<GlobalContext>) -> Redirect {
-    println!("This is what we got: {:?}", input);
-    let arc_ref = Arc::clone(&global.name);
-    let mut opt = arc_ref.lock().unwrap();
-    *opt = Some(input.get().name.clone());
+fn name_form(input: Form<NameForm>, mut cookies: Cookies) -> Redirect {
+    cookies.add_private(Cookie::new("name", input.get().name.clone()));
     return Redirect::to("/");
 }
 
 #[get("/")]
-fn index(global: State<GlobalContext>) -> Template {
-    if let Ok(lock_result) = global.name.lock() {
-        if let Some(ref name) = *lock_result {
-            return Template::render("index", Context { name: &name });
-        } else {
-            return Template::render("index", Context { name: "World!" });
-        }
+fn index(mut cookies: Cookies) -> Template {
+    match cookies.get_private("name") {
+        Some(ref cookie) => Template::render("index", &Context { name: cookie.value() }),
+        None => Template::render("index", &Context { name: "World!" }),
     }
-    println!("Failed to lock database");
-    Template::render("index", Context { name: "World!" })
 }
 
 #[error(404)]
@@ -98,6 +85,5 @@ pub fn rocket() -> rocket::Rocket {
     rocket::ignite()
         .mount("/", routes![static_files, index, contact, about, name_form])
         .catch(errors![not_found, server_error])
-        .manage(GlobalContext { name: Arc::new(Mutex::new(None)) })
         .attach(Template::fairing())
 }
