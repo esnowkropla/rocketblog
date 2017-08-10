@@ -1,0 +1,13 @@
+{% extends "base" %}
+{% block title %}Home{% endblock title %}
+{% block nav_contents %}
+<li class="active"><a href="/">Home</a></li>
+<li><a href="/about">About</a></li>
+<li><a href="/contact">Contact</a></li>
+{% endblock nav_contents %}
+
+{% block page_contents %}
+<div class="page-header">
+	<h1>Hello, {{ name }}!</h1>
+</div>
+{% endblock page_contents %}

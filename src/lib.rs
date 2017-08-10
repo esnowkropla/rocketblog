@@ -8,104 +8,96 @@ extern crate rocket_contrib;
 extern crate serde_derive;
 extern crate serde;
 
-use rocket::http::{Cookie, Cookies};
-use rocket::response::{Redirect, Flash};
-use rocket::request::{self, Form, FlashMessage, FromRequest, Request};
-use rocket::Outcome;
+use rocket::response::{NamedFile, Failure, Redirect, status};
+use rocket::http::Status;
+use rocket::request::{Request, Form, LenientForm, State};
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use rocket_contrib::Template;
 
 pub mod useragent;
-pub mod flasher;
 
-struct UserContext<'a> {
-    pub name: Option<&'a str>,
-    flash: Option<flasher::Flasher>,
+#[derive(Serialize)]
+struct Context<'a> {
+    name: &'a str,
 }
 
-struct Admin;
-
-impl<'a, 'r> FromRequest<'a, 'r> for Admin {
-    type Error = ();
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<Admin, ()> {
-        match request.cookies().get_private("name") {
-            Some(ref cookie) if cookie.value() == "Elliot" => Outcome::Success(Admin),
-            _ => Outcome::Forward(()),
+#[get("/<filename..>")]
+fn static_files(filename: PathBuf) -> Result<NamedFile, Failure> {
+    let path = Path::new("static/").join(filename);
+    match NamedFile::open(&path) {
+        Ok(file) => Ok(file),
+        Err(e) => {
+            println!("failed to find file {:?}, err: {}", path, e);
+            return Err(Failure(Status::NotFound));
         }
     }
 }
 
-#[derive(FromForm)]
-struct Name {
-    pub name: String,
+#[get("/about")]
+fn about() -> Template {
+    let context = Context { name: "" };
+    Template::render("about", &context)
 }
 
-#[post("/", data = "<user_form>")]
-fn name(user_form: Form<Name>, mut cookies: Cookies) -> Redirect {
-    cookies.add_private(Cookie::new("name", user_form.get().name.clone()));
-    Redirect::to("/")
+#[get("/contact")]
+fn contact() -> Template {
+    let context = Context { name: "" };
+    Template::render("contact", &context)
 }
 
-#[get("/logout")]
-fn logout(mut cookies: Cookies) -> Flash<Redirect> {
-    cookies.remove_private(Cookie::named("name"));
-    Flash::success(Redirect::to("/"), "Successfully logged out")
+struct GlobalContext {
+    name: Arc<Mutex<Option<String>>>,
 }
 
-#[get("/admin", rank = 1)]
-fn admin_panel(admin: Admin, flash: Option<FlashMessage>) -> Template {
-    let flasher = match flash {
-        Some(msg) => Some(flasher::Flasher(msg)),
-        None => None,
-    };
-    let context = UserContext {
-        name: None,
-        flash: flasher,
-    };
-    Template::render("admin", &context)
+#[derive(FromForm, Debug)]
+struct NameForm {
+    name: String,
 }
 
-#[get("/admin", rank = 2)]
-fn admin_panel_user() -> Flash<Redirect> {
-    Flash::error(
-        Redirect::to("/"),
-        "Sorry, you're not allowed on the admin page",
-    )
+#[post("/", data = "<input>")]
+fn name_form(input: LenientForm<NameForm>, global: State<GlobalContext>) -> Redirect {
+    println!("This is what we got: {:?}", input);
+    let arc_ref = Arc::clone(&global.name);
+    let mut opt = arc_ref.lock().unwrap();
+    *opt = Some(input.get().name.clone());
+    return Redirect::to("/");
 }
 
 #[get("/")]
-fn index(flash: Option<FlashMessage>, mut cookies: Cookies) -> Template {
-    let flasher = match flash {
-        Some(msg) => Some(flasher::Flasher(msg)),
-        None => None,
-    };
-    match cookies.get_private("name") {
-        Some(cookie) => {
-            return Template::render(
-                "user",
-                &UserContext {
-                    name: Some(cookie.value()),
-                    flash: flasher,
-                },
-            );
+fn index(global: State<GlobalContext>) -> Template {
+    if let Ok(lock_result) = global.name.lock() {
+        if let Some(ref name) = *lock_result {
+            return Template::render("index", Context { name: &name });
+        } else {
+            return Template::render("index", Context { name: "World!" });
         }
-        None => {
-            return Template::render(
-                "index",
-                &UserContext {
-                    name: None,
-                    flash: flasher,
-                },
-            )
-        }
-    };
+    }
+    println!("Failed to lock database");
+    Template::render("index", Context { name: "World!" })
+}
+
+#[error(404)]
+fn not_found(_: &Request) -> status::NotFound<Template> {
+    let context = Context { name: "" };
+    status::NotFound(Template::render("404", &context))
+}
+
+#[error(500)]
+fn server_error(_: &Request) -> status::Custom<Template> {
+    let context = Context { name: "" };
+    status::Custom(
+        Status::InternalServerError,
+        Template::render("404", &context),
+    )
 }
 
 pub fn rocket() -> rocket::Rocket {
     rocket::ignite()
-        .mount(
-            "/",
-            routes![index, name, logout, admin_panel, admin_panel_user],
-        )
+        .mount("/", routes![static_files, index, contact, about, name_form])
+        .catch(errors![not_found, server_error])
+        .manage(GlobalContext { name: Arc::new(Mutex::new(None)) })
         .attach(Template::fairing())
 }
