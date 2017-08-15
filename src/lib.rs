@@ -6,18 +6,23 @@ extern crate rocket_contrib;
 
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
 extern crate serde;
 
 extern crate rusqlite;
 extern crate r2d2;
 extern crate chrono;
+extern crate bcrypt;
 
 use rocket::response::{NamedFile, Failure, Redirect, status};
 use rocket::http::{Status, Cookies, Cookie};
 use rocket::request::{Request, Form};
 
+use serde_json::to_string;
+
 use std::path::{Path, PathBuf};
 
+use bcrypt::{DEFAULT_COST, hash, verify};
 use rocket_contrib::{Template, Json};
 
 pub mod useragent;
@@ -26,6 +31,7 @@ pub mod users;
 pub mod posts;
 
 use db::DbConn;
+use users::User;
 
 #[derive(Serialize)]
 struct Context<'a> {
@@ -94,6 +100,35 @@ fn posts(conn: DbConn) -> Json<Vec<Post>> {
     return Json(posts);
 }
 
+#[derive(FromForm, Debug)]
+struct Login {
+    email: String,
+    password: String,
+}
+
+#[post("/login", data = "<input>")]
+fn post_login(input: Form<Login>, conn: DbConn, mut cookies: Cookies) -> Redirect {
+    let mut stmt = conn.prepare("SELECT * FROM users WHERE email=?").unwrap();
+    let user = match stmt.query_row(&[&input.get().email], |x| User::from_row(x)) {
+        Ok(user) => user,
+        Err(_) => return Redirect::to("/"),
+    };
+
+    match hash(&input.get().password, DEFAULT_COST) {
+        Err(_) => return Redirect::to("/"),
+        _ => (),
+    };
+
+    cookies.add_private(Cookie::new("auth", to_string(&user).unwrap()));
+
+    Redirect::to("/")
+}
+
+#[get("/login")]
+fn get_login() -> Template {
+    Template::render("login", &Context { name: "" })
+}
+
 #[get("/")]
 fn index(mut cookies: Cookies) -> Template {
     match cookies.get_private("name") {
@@ -121,7 +156,16 @@ pub fn rocket() -> rocket::Rocket {
     rocket::ignite()
         .mount(
             "/",
-            routes![static_files, index, contact, about, name_form, posts],
+            routes![
+                static_files,
+                index,
+                contact,
+                about,
+                name_form,
+                posts,
+                get_login,
+                post_login,
+            ],
         )
         .catch(errors![not_found, server_error])
         .manage(db::init_pool())

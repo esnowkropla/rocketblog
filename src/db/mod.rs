@@ -8,6 +8,7 @@ use r2d2;
 
 pub mod connection_manager;
 use self::connection_manager::SqliteConnectionManager;
+use users::NewUser;
 
 type Pool = r2d2::Pool<SqliteConnectionManager>;
 
@@ -38,3 +39,30 @@ impl Deref for DbConn {
         &self.0
     }
 }
+
+/*
+pub fn register_user(user: NewUser, conn: DbConn) -> Result<()> {
+    let mut stmt = try!(conn.prepare_cached("INSERT INTO users (email, username, password_hash, role_id) VALUES (?)"));
+
+    try!(stmt.execute(&[]));
+}*/
+
+pub fn mock_database()
+{
+    let create = "CREATE TABLE roles(
+	id INTEGER PRIMARY KEY,
+	name TEXT NOT NULL,
+	permissions INTEGER
+);
+
+CREATE TABLE users(
+	id INTEGER PRIMARY KEY,
+	email TEXT NOT NULL,
+	username TEXT NOT NULL,
+	password_hash TEXT NOT NULL,
+	role_id INTEGER NOT NULL,
+	FOREIGN KEY(role_id) REFERENCES role(id)
+);";
+}
+
+

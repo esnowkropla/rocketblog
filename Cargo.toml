@@ -14,3 +14,5 @@ serde_derive = "*"
 chrono = { version = "*", features = ["serde"]}
 rusqlite = "*"
 postgres = "*"
+bcrypt = "*"
+uuid = { version = "*", features = ["serde", "v4"]}
